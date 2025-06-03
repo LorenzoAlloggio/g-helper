@@ -19,7 +19,8 @@ public static class AsusHid
 
         try
         {
-            deviceList = DeviceList.Local.GetHidDevices(ASUS_ID).Where(device => deviceIds.Contains(device.ProductID) && device.GetMaxFeatureReportLength() > 0 && device.CanOpen);
+            deviceList = DeviceList.Local.GetHidDevices(ASUS_ID)
+                .Where(device => deviceIds.Contains(device.ProductID) && device.GetMaxFeatureReportLength() > 0 && device.CanOpen);
         }
         catch (Exception ex)
         {
@@ -36,7 +37,7 @@ public static class AsusHid
             }
             catch (Exception ex)
             {
-                //Logger.WriteLine($"Error getting report descriptor for device {device.ProductID.ToString("X")}: {ex.Message}");
+                // Logger.WriteLine($"Error getting report descriptor for device {device.ProductID.ToString("X")}: {ex.Message}");
             }
             if (isValid) yield return device;
         }
@@ -47,18 +48,22 @@ public static class AsusHid
         try
         {
             var devices = FindDevices(reportId);
-            if (devices is null) return null;
+            if (devices == null || !devices.Any())
+            {
+                Logger.WriteLine($"No HID devices found for report ID {reportId:X2}");
+                return null;
+            }
 
             if (AppConfig.IsZ13())
             {
                 var z13 = devices.Where(device => device.ProductID == 0x1a30).FirstOrDefault();
-                if (z13 is not null) return z13.Open();
+                if (z13 != null) return z13.Open();
             }
 
             if (AppConfig.IsS17())
             {
                 var s17 = devices.Where(device => device.ProductID == 0x18c6).FirstOrDefault();
-                if (s17 is not null) return s17.Open();
+                if (s17 != null) return s17.Open();
             }
 
             foreach (var device in devices)
@@ -76,7 +81,14 @@ public static class AsusHid
 
     public static void WriteInput(byte[] data, string? log = "USB")
     {
-        foreach (var device in FindDevices(INPUT_ID))
+        var devices = FindDevices(INPUT_ID);
+        if (devices == null || !devices.Any())
+        {
+            Logger.WriteLine("No input HID devices found.");
+            return;
+        }
+
+        foreach (var device in devices)
         {
             try
             {
@@ -85,13 +97,12 @@ public static class AsusHid
                     var payload = new byte[device.GetMaxFeatureReportLength()];
                     Array.Copy(data, payload, data.Length);
                     stream.SetFeature(payload);
-                    if (log is not null) Logger.WriteLine($"{log} {device.ProductID.ToString("X")}|{device.GetMaxFeatureReportLength()}: {BitConverter.ToString(data)}");
+                    if (log != null) Logger.WriteLine($"{log} {device.ProductID.ToString("X")}|{device.GetMaxFeatureReportLength()}: {BitConverter.ToString(data)}");
                 }
             }
             catch (Exception ex)
             {
                 Logger.WriteLine($"Error setting feature {device.GetMaxFeatureReportLength()} {device.DevicePath}: {BitConverter.ToString(data)} {ex.Message}");
-
             }
         }
     }
@@ -104,32 +115,41 @@ public static class AsusHid
     public static void Write(List<byte[]> dataList, string log = "USB")
     {
         var devices = FindDevices(AURA_ID);
-        if (devices is null) return;
+        if (devices == null || !devices.Any())
+        {
+            Logger.WriteLine("No aura HID devices found.");
+            return;
+        }
 
         foreach (var device in devices)
+        {
             try
             {
                 using (var stream = device.Open())
+                {
                     foreach (var data in dataList)
+                    {
                         try
                         {
                             stream.Write(data);
-                            if (log is not null) Logger.WriteLine($"{log} {device.ProductID.ToString("X")}: {BitConverter.ToString(data)}");
+                            if (log != null) Logger.WriteLine($"{log} {device.ProductID.ToString("X")}: {BitConverter.ToString(data)}");
                         }
                         catch (Exception ex)
                         {
-                            if (log is not null) Logger.WriteLine($"Error writing {log} {device.ProductID.ToString("X")}: {ex.Message} {BitConverter.ToString(data)} ");
+                            if (log != null) Logger.WriteLine($"Error writing {log} {device.ProductID.ToString("X")}: {ex.Message} {BitConverter.ToString(data)} ");
                         }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                if (log is not null) Logger.WriteLine($"Error opening {log} {device.ProductID.ToString("X")}: {ex.Message}");
+                if (log != null) Logger.WriteLine($"Error opening {log} {device.ProductID.ToString("X")}: {ex.Message}");
             }
+        }
     }
 
     public static void WriteAura(byte[] data, bool retry = true)
     {
-
         if (auraStream == null) auraStream = FindHidStream(AURA_ID);
         if (auraStream == null)
         {
@@ -149,6 +169,4 @@ public static class AsusHid
             if (retry) WriteAura(data, false);
         }
     }
-
 }
-

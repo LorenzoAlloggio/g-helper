@@ -314,23 +314,22 @@ namespace GHelper.USB
                 Program.acpi.TUFKeyboardBrightness(brightness);
             }
 
-            // Remove this null check because AsusHid is a type, not an instance
-            // if (AsusHid == null)
-            // {
-            //     Console.WriteLine("AsusHid is null – cannot set brightness");
-            //     return;
-            // }
-
-            if (AppConfig.IsInputBacklight())
+            try
             {
-                AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
+                if (AppConfig.IsInputBacklight())
+                {
+                    AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
+                }
+                else
+                {
+                    AsusHid.Write(new byte[] { AsusHid.AURA_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                AsusHid.Write(new byte[] { AsusHid.AURA_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
+                Logger.WriteLine($"[DirectBrightness] Error during write: {ex.Message}");
             }
         }
-
 
         static byte[] AuraPowerMessage(AuraPower flags)
         {
